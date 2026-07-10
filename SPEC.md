@@ -1,6 +1,6 @@
 # Open Presence Protocol (OPP)
 
-**Version:** 0.1.0 (Draft)
+**Version:** 0.1 (Draft)
 
 # Status of This Document
 
@@ -10,36 +10,42 @@ This specification is a draft and is subject to change. It is intended to encour
 
 # 1. Introduction
 
-Open Presence Protocol (OPP) is an open, decentralized protocol for publishing and discovering the online presence of an identity.
+Open Presence Protocol (OPP) is an open, decentralized protocol for publishing cryptographically verifiable presence declarations.
 
-An OPP document contains cryptographically verifiable claims about the public endpoints associated with an identity, enabling applications and services to locate and interact with that identity without relying on a central authority.
+An OPP document contains signed claims about the public service endpoints associated with an identity, allowing applications to verify where an identity may be found without relying on a central authority.
 
-OPP intentionally does not define identity, content, messaging, or social networking. Those concerns are left to other protocols and applications.
-
-By remaining small, focused, and composable, OPP serves as a common foundation upon which interoperable services can be built.
+OPP intentionally does not define identity, messaging, content distribution, or social networking. Those concerns belong to higher-level protocols.
 
 ---
 
 # 2. Scope
 
-The Open Presence Protocol defines a standard format for publishing signed presence declarations.
+OPP version 0.1 specifies:
+
+- The structure of a presence document.
+- How a presence document is signed.
+- How a presence document is verified.
 
 An OPP document answers one question:
 
 > **Where can this identity be found?**
 
-An OPP document does **not** answer:
+Version 0.1 intentionally does not define:
 
-- Who is this identity?
-- What content has this identity published?
-- How should messages be delivered?
-- How should applications present or consume content?
+- Identity recovery
+- Key rotation
+- Federation
+- Replication
+- Discovery
+- Search
+- Private presence documents
+- Access control
+- Messaging
+- Content distribution
 
 ---
 
 # 3. Design Principles
-
-OPP is designed around the following principles:
 
 - Solve one problem well.
 - Be decentralized.
@@ -49,39 +55,37 @@ OPP is designed around the following principles:
 - Compose with other protocols.
 - Prefer simplicity over completeness.
 
-Features that do not directly contribute to expressing or verifying online presence should be implemented by other protocols.
-
 ---
 
 # 4. Presence Document
 
 An OPP presence document is a JSON object.
 
-## Required Fields
+Required fields:
 
 | Field | Description |
-|--------|-------------|
-| `type` | Must be `"open-presence"` |
-| `version` | OPP specification version |
-| `subject` | Stable identifier for the identity |
-| `public_key` | Public key corresponding to the signing key |
-| `issued_at` | ISO-8601 timestamp indicating creation time |
-| `services` | Array of public service endpoints |
-| `signature` | Cryptographic signature over the document |
+|---|---|
+| type | Must equal `"open-presence"` |
+| version | Protocol version |
+| subject | Stable identifier derived from the public key |
+| public_key | Ed25519 public key encoded using unpadded Base64url |
+| issued_at | ISO-8601 UTC timestamp |
+| services | Array of service objects |
+| signature | Signature object |
 
-## Optional Fields
+Optional fields:
 
 | Field | Description |
-|--------|-------------|
-| `expires_at` | Time after which consumers should no longer trust the document |
+|---|---|
+| expires_at | Expiration timestamp |
 
 ---
 
 # 5. Service Objects
 
-Each service entry represents one publicly accessible endpoint associated with the identity.
+Each service object represents one publicly accessible endpoint.
 
-Minimum structure:
+Minimum example:
 
 ```json
 {
@@ -90,14 +94,14 @@ Minimum structure:
 }
 ```
 
-## Required Fields
+Required fields:
 
 | Field | Description |
-|--------|-------------|
-| `type` | Generic service type |
-| `url` | Public endpoint |
+|---|---|
+| type | Generic service type |
+| url | Absolute HTTPS URL |
 
-## Suggested Initial Types
+Suggested initial service types:
 
 - profile
 - feed
@@ -114,107 +118,147 @@ Applications may define additional service types.
 
 ```json
 {
-  "type": "open-presence",
-  "version": "0.1",
-  "subject": "key:sha256:9b7e3e8b...",
-  "public_key": "MCowBQYDK2VwAyEA...",
-  "issued_at": "2026-07-09T04:00:00Z",
-  "expires_at": "2026-10-09T04:00:00Z",
-  "services": [
+  "type":"open-presence",
+  "version":"0.1",
+  "subject":"key:sha256:abc123...",
+  "public_key":"base64url-public-key",
+  "issued_at":"2026-07-09T04:00:00Z",
+  "expires_at":"2026-10-09T04:00:00Z",
+  "services":[
     {
-      "type": "profile",
-      "url": "https://example.com/jody"
-    },
-    {
-      "type": "feed",
-      "url": "https://example.com/jody/feed.json"
-    },
-    {
-      "type": "inbox",
-      "url": "https://example.com/inbox"
+      "type":"profile",
+      "url":"https://example.com/jody"
     }
   ],
-  "signature": {
-    "algorithm": "ed25519",
-    "value": "base64-signature"
+  "signature":{
+    "algorithm":"ed25519",
+    "value":"base64url-signature"
   }
 }
 ```
 
 ---
 
-# 7. Verification
+# 7. Signing and Serialization
 
-Consumers SHOULD verify:
+The signature authenticates the entire presence document.
 
-- The document is valid JSON.
-- `type` equals `"open-presence"`.
-- The signature is valid.
-- The signature matches the supplied public key.
-- The public key corresponds to the subject.
-- The document has not expired.
-- Service URLs are syntactically valid.
+To produce a signature:
 
-Consumers MAY ignore services they do not recognize.
+1. Remove the `signature` field.
+2. Serialize the remaining document using RFC 8785 JSON Canonicalization Scheme (JCS).
+3. Encode as UTF-8.
+4. Sign using Ed25519.
+5. Encode the signature using unpadded Base64url.
+6. Store the signature in `signature.value`.
+
+The signature object has the following form:
+
+```json
+{
+  "algorithm":"ed25519",
+  "value":"base64url-signature"
+}
+```
+
+OPP v0.1 supports only Ed25519.
 
 ---
 
-# 8. Identity
+# 8. Subject Identifiers
+
+The `subject` uniquely identifies the public key controlling the presence document.
+
+Format:
+
+```
+key:sha256:<digest>
+```
+
+`<digest>` is the SHA-256 hash of the decoded Ed25519 public key encoded with unpadded Base64url.
+
+Consumers MUST verify that the subject matches the supplied public key.
+
+---
+
+# 9. Verification
+
+Consumers MUST verify:
+
+- Valid JSON.
+- Supported version.
+- `type == "open-presence"`.
+- Required fields are present.
+- Public key encoding is valid.
+- Subject matches the public key.
+- Signature is valid.
+- Signature verifies the canonicalized document.
+- `issued_at` and `expires_at` are valid timestamps.
+- Document has not expired.
+- Every service URL is an absolute HTTPS URL.
+
+Consumers MAY ignore unknown service types and unknown fields.
+
+Consumers MUST NOT trust any document that fails verification.
+
+---
+
+# 10. Identity
 
 OPP does not define identity.
 
-The `subject` field represents a stable identifier controlled by the signing key.
+It defines only how a cryptographic identity publishes a verifiable declaration of its public presence.
 
-Future versions of OPP may support additional identity systems such as Decentralized Identifiers (DIDs), provided they remain compatible with the protocol's design goals.
+Alternative identity systems (such as DIDs) may be supported by future versions provided they remain compatible with this protocol.
 
 ---
 
-# 9. Content Boundary
+# 11. Content Boundary
 
 Presence documents MUST NOT contain:
 
 - Posts
-- Articles
+- Messages
 - Images
 - Videos
+- Articles
 - Comments
 - Reactions
 - Social graph information
-- Messaging content
 
-Such information belongs to higher-level protocols and applications.
-
----
-
-# 10. Key Recovery
-
-OPP version 0.1 does not define identity recovery.
-
-If a private key is lost, the corresponding identity can no longer issue valid presence documents.
-
-Future protocols or identity systems may define mechanisms for key rotation or identity recovery.
+Presence documents contain only routing information.
 
 ---
 
-# 11. Extensibility
+# 12. Key Recovery
 
-Future versions of OPP may define:
+Version 0.1 does not define key recovery or key rotation.
+
+If a private key is lost, the associated identity can no longer publish updated presence documents.
+
+Future specifications may define recovery mechanisms.
+
+---
+
+# 13. Extensibility
+
+Future versions may define:
 
 - Additional service types
-- Alternative identity schemes
-- Key rotation
-- Recovery mechanisms
-- Service discovery
 - Additional signature algorithms
+- Alternative identity systems
+- Discovery mechanisms
+- Federation
+- Replication
+- Key rotation
+- Recovery
 
-These extensions should preserve backward compatibility whenever practical.
+Extensions should preserve backward compatibility whenever practical.
 
 ---
 
-# 12. Philosophy
+# 14. Philosophy
 
-The Open Presence Protocol exists to let any identity publish its online presence in a simple, verifiable, decentralized way.
+The Open Presence Protocol exists to provide a simple, verifiable, decentralized foundation for publishing online presence.
 
-It intentionally does not define identity, content, messaging, or social networking.
-
-By remaining small, focused, and composable, OPP provides a common foundation upon which an open ecosystem of interoperable services can be built.
+It intentionally solves only one problem and is designed to be composed with higher-level protocols rather than replace them.
