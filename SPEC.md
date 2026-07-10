@@ -8,6 +8,12 @@ This specification is a draft and is subject to change. It is intended to encour
 
 ---
 
+# Conventions
+
+The key words “MUST,” “MUST NOT,” “SHOULD,” “SHOULD NOT,” and “MAY” in this document are to be interpreted as described in BCP 14, RFC 2119, and RFC 8174 when, and only when, they appear in all capitals.
+
+---
+
 # 1. Introduction
 
 Open Presence Protocol (OPP) is an open, decentralized protocol for publishing cryptographically verifiable presence declarations.
@@ -59,31 +65,33 @@ Version 0.1 intentionally does not define:
 
 # 4. Presence Document
 
-An OPP presence document is a JSON object.
+An OPP presence document is a JSON object. It describes verifiable service locations and does not carry the content exposed by those services.
 
 Required fields:
 
 | Field | Description |
 |---|---|
-| type | Must equal `"open-presence"` |
-| version | Protocol version |
+| type | MUST equal `"open-presence"` |
+| version | MUST be the JSON string "0.1" |
 | subject | Stable identifier derived from the public key |
-| public_key | Ed25519 public key encoded using unpadded Base64url |
-| issued_at | ISO-8601 UTC timestamp |
-| services | Array of service objects |
+| public_key | MUST be the unpadded Base64url encoding of a 32-byte Ed25519 public key |
+| issued_at | MUST be an RFC 3339 date-time expressed in UTC using the Z suffix |
+| services | MUST be a JSON array of service objects |
 | signature | Signature object |
 
 Optional fields:
 
 | Field | Description |
 |---|---|
-| expires_at | Expiration timestamp |
+| expires_at | MUST be an RFC 3339 date-time expressed in UTC using the Z suffix |
 
 ---
 
 # 5. Service Objects
 
 Each service object represents one publicly accessible endpoint.
+
+Each service object MUST contain string-valued type and url members.
 
 Minimum example:
 
@@ -110,7 +118,7 @@ Suggested initial service types:
 - verification
 - presence
 
-Applications may define additional service types.
+Applications MAY define additional service types.
 
 ---
 
@@ -141,11 +149,11 @@ Applications may define additional service types.
 
 # 7. Signing and Serialization
 
-The signature authenticates the entire presence document.
+The signature authenticates all members of the presence document except the `signature` member.
 
-To produce a signature:
+To produce a signature, a producer MUST perform the following steps:
 
-1. Remove the `signature` field.
+1. Construct a copy of the document with the top-level `signature` member omitted.
 2. Serialize the remaining document using RFC 8785 JSON Canonicalization Scheme (JCS).
 3. Encode as UTF-8.
 4. Sign using Ed25519.
@@ -160,6 +168,9 @@ The signature object has the following form:
   "value":"base64url-signature"
 }
 ```
+
+- `algorithm` MUST be the JSON string "ed25519".
+- `value` MUST be the unpadded Base64url encoding of the 64-byte Ed25519 signature.
 
 OPP v0.1 supports only Ed25519.
 
@@ -179,6 +190,8 @@ key:sha256:<digest>
 
 Consumers MUST verify that the subject matches the supplied public key.
 
+To derive the subject, decode `public_key` from unpadded Base64url, calculate the SHA-256 digest of the resulting 32 raw key bytes, encode the digest using unpadded Base64url, and prepend `key:sha256:`.
+
 ---
 
 # 9. Verification
@@ -187,15 +200,18 @@ Consumers MUST verify:
 
 - Valid JSON.
 - Supported version.
-- `type == "open-presence"`.
+- `type` == "open-presence".
 - Required fields are present.
 - Public key encoding is valid.
 - Subject matches the public key.
 - Signature is valid.
 - Signature verifies the canonicalized document.
-- `issued_at` and `expires_at` are valid timestamps.
+- `issued_at` is a valid RFC 3339 UTC timestamp.
+- `expires_at`, when present, is a valid RFC 3339 UTC timestamp and is later than `issued_at`.
 - Document has not expired.
 - Every service URL is an absolute HTTPS URL.
+- The JSON object contains no duplicate member names.
+- Service URLs do not contain a username or password component.
 
 Consumers MAY ignore unknown service types and unknown fields.
 
@@ -215,18 +231,11 @@ Alternative identity systems (such as DIDs) may be supported by future versions 
 
 # 11. Content Boundary
 
-Presence documents MUST NOT contain:
+OPP-defined fields MUST NOT directly contain posts, messages, media, comments, reactions, or social graph information.
 
-- Posts
-- Messages
-- Images
-- Videos
-- Articles
-- Comments
-- Reactions
-- Social graph information
+Such information SHOULD be exposed through service endpoints defined by higher-level protocols.
 
-Presence documents contain only routing information.
+Consumers MAY ignore extension fields they do not recognize.
 
 ---
 
@@ -236,7 +245,7 @@ Version 0.1 does not define key recovery or key rotation.
 
 If a private key is lost, the associated identity can no longer publish updated presence documents.
 
-Future specifications may define recovery mechanisms.
+Future specifications MAY define recovery mechanisms.
 
 ---
 
@@ -253,7 +262,7 @@ Future versions may define:
 - Key rotation
 - Recovery
 
-Extensions should preserve backward compatibility whenever practical.
+Extensions SHOULD preserve backward compatibility whenever practical.
 
 ---
 
