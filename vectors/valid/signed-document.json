@@ -1,0 +1,22 @@
+{
+  "type": "open-presence",
+  "version": "0.1",
+  "subject": "key:sha256:Vkdap1RjR0wChd9dvyvKtz2mUTWIOem3dIGy6rEHcIw",
+  "public_key": "A6EHv_POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg",
+  "issued_at": "2026-07-11T20:00:00Z",
+  "expires_at": "2026-10-11T20:00:00Z",
+  "services": [
+    {
+      "type": "profile",
+      "url": "https://example.com/jody"
+    },
+    {
+      "type": "feed",
+      "url": "https://example.com/jody/feed"
+    }
+  ],
+  "signature": {
+    "algorithm": "ed25519",
+    "value": "-ojCCq5ngoVSQsUB68EGtvuTAQBLajwoHP4irGZUlvfkuyFOy_1uTOp-0lmAWX6wnUs_upzl6mwfMoizUNZbAw"
+  }
+}
