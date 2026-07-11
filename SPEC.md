@@ -2,6 +2,8 @@
 
 **Version:** 0.1 (Draft)
 
+Before contributing to this specification, please read [WHY.md](WHY.md). The specification describes how OPP works. [WHY.md](WHY.md) explains why it exists.
+
 # Status of This Document
 
 This specification is a draft and is subject to change. It is intended to encourage experimentation and discussion. Implementers should expect incompatible changes before version 1.0.
