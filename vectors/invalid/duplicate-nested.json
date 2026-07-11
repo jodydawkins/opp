@@ -1,0 +1,18 @@
+{
+  "type": "open-presence",
+  "version": "0.1",
+  "subject": "key:sha256:example",
+  "public_key": "example",
+  "issued_at": "2026-07-11T20:00:00Z",
+  "services": [
+    {
+      "type": "profile",
+      "url": "https://example.com/one",
+      "url": "https://example.com/two"
+    }
+  ],
+  "signature": {
+    "algorithm": "ed25519",
+    "value": "example"
+  }
+}

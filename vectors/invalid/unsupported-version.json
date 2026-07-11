@@ -1,0 +1,9 @@
+{
+  "type": "open-presence",
+  "version": "0.2",
+  "subject": "key:sha256:Vkdap1RjR0wChd9dvyvKtz2mUTWIOem3dIGy6rEHcIw",
+  "public_key": "A6EHv_POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg",
+  "issued_at": "2026-07-11T20:00:00Z",
+  "services": [],
+  "signature": {"algorithm": "ed25519", "value": "test"}
+}

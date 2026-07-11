@@ -1,0 +1,8 @@
+{
+  "type": "open-presence",
+  "subject": "key:sha256:test",
+  "public_key": "test",
+  "issued_at": "2026-07-11T20:00:00Z",
+  "services": [],
+  "signature": {"algorithm": "ed25519", "value": "test"}
+}
