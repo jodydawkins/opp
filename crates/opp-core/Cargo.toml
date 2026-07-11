@@ -3,7 +3,7 @@ name = "opp-core"
 version = "0.1.0"
 edition = "2021"
 description = "Open Presence Protocol 0.1 reference implementation"
-license = "MIT"
+license = "Apache 2.0"
 
 [dependencies]
 base64 = "0.22"
