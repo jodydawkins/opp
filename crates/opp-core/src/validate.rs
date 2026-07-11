@@ -76,9 +76,6 @@ pub fn validate_service_url(url_str: &str) -> Result<(), VerificationError> {
 
     // Must be HTTPS
     if parsed.scheme() != "https" {
-        if parsed.scheme() == "http" {
-            return Err(VerificationError::NonHttpsServiceUrl);
-        }
         return Err(VerificationError::NonHttpsServiceUrl);
     }
 
