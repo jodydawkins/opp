@@ -170,8 +170,7 @@ pub fn verify(
 
     // Verify the signature
     let public_key_str = obj.get("public_key").unwrap().as_str().unwrap();
-    let public_key_bytes =
-        validate_public_key_encoding(public_key_str)?;
+    let public_key_bytes = validate_public_key_encoding(public_key_str)?;
     let verifying_key = VerifyingKey::from_bytes(&public_key_bytes)
         .map_err(|_| VerificationError::InvalidPublicKeyEncoding)?;
 
@@ -189,8 +188,18 @@ pub fn verify(
     for service in services_arr {
         let service_obj = service.as_object().unwrap();
         services.push(ServiceObject {
-            service_type: service_obj.get("type").unwrap().as_str().unwrap().to_string(),
-            url: service_obj.get("url").unwrap().as_str().unwrap().to_string(),
+            service_type: service_obj
+                .get("type")
+                .unwrap()
+                .as_str()
+                .unwrap()
+                .to_string(),
+            url: service_obj
+                .get("url")
+                .unwrap()
+                .as_str()
+                .unwrap()
+                .to_string(),
         });
     }
 

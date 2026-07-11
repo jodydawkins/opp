@@ -32,7 +32,14 @@ pub fn validate_document_fields(
     obj: &serde_json::Map<String, serde_json::Value>,
 ) -> Result<(), VerificationError> {
     // Check required fields (signature is not required here — signing adds it)
-    let required_fields = ["type", "version", "subject", "public_key", "issued_at", "services"];
+    let required_fields = [
+        "type",
+        "version",
+        "subject",
+        "public_key",
+        "issued_at",
+        "services",
+    ];
     for field in &required_fields {
         if !obj.contains_key(*field) {
             return Err(VerificationError::MissingField {
@@ -42,28 +49,28 @@ pub fn validate_document_fields(
     }
 
     // Validate type
-    let type_val = obj
-        .get("type")
-        .unwrap()
-        .as_str()
-        .ok_or(VerificationError::InvalidFieldType {
-            field: "type".to_string(),
-            expected: "string".to_string(),
-        })?;
+    let type_val =
+        obj.get("type")
+            .unwrap()
+            .as_str()
+            .ok_or(VerificationError::InvalidFieldType {
+                field: "type".to_string(),
+                expected: "string".to_string(),
+            })?;
 
     if type_val != "open-presence" {
         return Err(VerificationError::InvalidType(type_val.to_string()));
     }
 
     // Validate version
-    let version_val = obj
-        .get("version")
-        .unwrap()
-        .as_str()
-        .ok_or(VerificationError::InvalidFieldType {
-            field: "version".to_string(),
-            expected: "string".to_string(),
-        })?;
+    let version_val =
+        obj.get("version")
+            .unwrap()
+            .as_str()
+            .ok_or(VerificationError::InvalidFieldType {
+                field: "version".to_string(),
+                expected: "string".to_string(),
+            })?;
 
     if version_val != "0.1" {
         return Err(VerificationError::UnsupportedVersion(
@@ -72,26 +79,26 @@ pub fn validate_document_fields(
     }
 
     // Validate public key
-    let public_key_str = obj
-        .get("public_key")
-        .unwrap()
-        .as_str()
-        .ok_or(VerificationError::InvalidFieldType {
-            field: "public_key".to_string(),
-            expected: "string".to_string(),
-        })?;
+    let public_key_str =
+        obj.get("public_key")
+            .unwrap()
+            .as_str()
+            .ok_or(VerificationError::InvalidFieldType {
+                field: "public_key".to_string(),
+                expected: "string".to_string(),
+            })?;
 
     let public_key_bytes = validate_public_key_encoding(public_key_str)?;
 
     // Validate subject matches public key
-    let subject_str = obj
-        .get("subject")
-        .unwrap()
-        .as_str()
-        .ok_or(VerificationError::InvalidFieldType {
-            field: "subject".to_string(),
-            expected: "string".to_string(),
-        })?;
+    let subject_str =
+        obj.get("subject")
+            .unwrap()
+            .as_str()
+            .ok_or(VerificationError::InvalidFieldType {
+                field: "subject".to_string(),
+                expected: "string".to_string(),
+            })?;
 
     let expected_subject = derive_subject(&public_key_bytes);
     if subject_str != expected_subject {
@@ -99,14 +106,14 @@ pub fn validate_document_fields(
     }
 
     // Validate issued_at
-    let issued_at_str = obj
-        .get("issued_at")
-        .unwrap()
-        .as_str()
-        .ok_or(VerificationError::InvalidFieldType {
-            field: "issued_at".to_string(),
-            expected: "string".to_string(),
-        })?;
+    let issued_at_str =
+        obj.get("issued_at")
+            .unwrap()
+            .as_str()
+            .ok_or(VerificationError::InvalidFieldType {
+                field: "issued_at".to_string(),
+                expected: "string".to_string(),
+            })?;
 
     validate_timestamp(issued_at_str, "issued_at")?;
 

@@ -231,17 +231,14 @@ fn parse_string_value(input: &mut &[u8]) -> Result<String, ParseError> {
                                 ));
                             }
                             *input = &input[4..];
-                            let codepoint = 0x10000
-                                + ((code as u32 - 0xD800) << 10)
-                                + (code2 as u32 - 0xDC00);
+                            let codepoint =
+                                0x10000 + ((code as u32 - 0xD800) << 10) + (code2 as u32 - 0xDC00);
                             result.push(char::from_u32(codepoint).ok_or_else(|| {
                                 ParseError::InvalidJson("invalid codepoint".to_string())
                             })?);
                         } else if (0xDC00..=0xDFFF).contains(&code) {
                             // Lone low surrogate
-                            return Err(ParseError::InvalidJson(
-                                "lone low surrogate".to_string(),
-                            ));
+                            return Err(ParseError::InvalidJson("lone low surrogate".to_string()));
                         } else {
                             result.push(char::from_u32(code as u32).ok_or_else(|| {
                                 ParseError::InvalidJson("invalid codepoint".to_string())

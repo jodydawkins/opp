@@ -754,7 +754,10 @@ fn test_sign_reject_subject_mismatch() {
     });
     let unsigned = UnsignedDocument::new(doc).unwrap();
     let err = sign(unsigned, &test_private_key()).unwrap_err();
-    assert!(matches!(err, SigningError::ValidationFailed(VerificationError::SubjectMismatch)));
+    assert!(matches!(
+        err,
+        SigningError::ValidationFailed(VerificationError::SubjectMismatch)
+    ));
 }
 
 // --- Canonicalization ---
