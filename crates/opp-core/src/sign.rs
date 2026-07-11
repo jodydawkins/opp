@@ -7,7 +7,6 @@
 
 use crate::canonicalize::canonicalize;
 use crate::error::{SigningError, VerificationError};
-use crate::subject::derive_subject;
 use crate::validate;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine;
@@ -48,8 +47,10 @@ impl UnsignedDocument {
 ///
 /// This function:
 /// 1. Validates that the document does not already have a signature.
-/// 2. Verifies the public key in the document matches the supplied private key.
-/// 3. Verifies the subject matches the public key.
+/// 2. Performs full document validation (type, version, fields, timestamps,
+///    services, public key, subject) — the same rules as verification minus
+///    signature checks and expiration checks.
+/// 3. Verifies the public key in the document matches the supplied private key.
 /// 4. Canonicalizes the document per RFC 8785.
 /// 5. Signs the canonical bytes with Ed25519.
 /// 6. Returns the complete signed document with the signature member.
@@ -58,8 +59,8 @@ impl UnsignedDocument {
 ///
 /// Returns `SigningError` if:
 /// - The document already contains a signature
+/// - Any document field is invalid
 /// - The public key in the document doesn't match the private key
-/// - The subject doesn't match the public key
 /// - Canonicalization fails
 pub fn sign(document: UnsignedDocument, private_key: &[u8; 32]) -> Result<Value, SigningError> {
     let obj = document
@@ -69,42 +70,20 @@ pub fn sign(document: UnsignedDocument, private_key: &[u8; 32]) -> Result<Value,
             VerificationError::NotAnObject,
         ))?;
 
+    // Full document validation (same rules as verification, minus signature/expiration checks)
+    validate::validate_document_fields(obj).map_err(SigningError::ValidationFailed)?;
+
     // Verify the public key in the document matches the private key
     let signing_key = SigningKey::from_bytes(private_key);
     let verifying_key = signing_key.verifying_key();
     let expected_public_key = verifying_key.to_bytes();
 
-    if let Some(pk_value) = obj.get("public_key") {
-        let pk_str = pk_value.as_str().ok_or(SigningError::ValidationFailed(
-            VerificationError::InvalidFieldType {
-                field: "public_key".to_string(),
-                expected: "string".to_string(),
-            },
-        ))?;
+    let pk_str = obj.get("public_key").unwrap().as_str().unwrap();
+    let doc_pk =
+        validate::validate_public_key_encoding(pk_str).map_err(SigningError::ValidationFailed)?;
 
-        let doc_pk = validate::validate_public_key_encoding(pk_str)
-            .map_err(SigningError::ValidationFailed)?;
-
-        if doc_pk != expected_public_key {
-            return Err(SigningError::PublicKeyMismatch);
-        }
-    }
-
-    // Verify the subject matches the public key
-    if let Some(subject_value) = obj.get("subject") {
-        let subject_str = subject_value
-            .as_str()
-            .ok_or(SigningError::ValidationFailed(
-                VerificationError::InvalidFieldType {
-                    field: "subject".to_string(),
-                    expected: "string".to_string(),
-                },
-            ))?;
-
-        let expected_subject = derive_subject(&expected_public_key);
-        if subject_str != expected_subject {
-            return Err(SigningError::SubjectMismatch);
-        }
+    if doc_pk != expected_public_key {
+        return Err(SigningError::PublicKeyMismatch);
     }
 
     // Canonicalize the document (without signature)
@@ -178,11 +157,18 @@ mod tests {
 
     #[test]
     fn test_reject_public_key_mismatch() {
+        // Use a valid-looking document but with a different key pair
+        let other_key = [0xFFu8; 32];
+        let other_signing = ed25519_dalek::SigningKey::from_bytes(&other_key);
+        let other_public = other_signing.verifying_key().to_bytes();
+        let other_pk_b64 = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(other_public);
+        let other_subject = crate::subject::derive_subject(&other_public);
+
         let doc = json!({
             "type": "open-presence",
             "version": "0.1",
-            "subject": "key:sha256:something",
-            "public_key": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+            "subject": other_subject,
+            "public_key": other_pk_b64,
             "issued_at": "2026-07-11T20:00:00Z",
             "services": []
         });
@@ -190,5 +176,61 @@ mod tests {
         let unsigned = UnsignedDocument::new(doc).unwrap();
         let err = sign(unsigned, &test_private_key()).unwrap_err();
         assert!(matches!(err, SigningError::PublicKeyMismatch));
+    }
+
+    #[test]
+    fn test_sign_rejects_missing_required_fields() {
+        // Missing "type", "version", "subject", etc.
+        let doc = json!({
+            "public_key": "A6EHv_POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg"
+        });
+        let unsigned = UnsignedDocument::new(doc).unwrap();
+        let err = sign(unsigned, &test_private_key()).unwrap_err();
+        assert!(matches!(err, SigningError::ValidationFailed(_)));
+    }
+
+    #[test]
+    fn test_sign_rejects_invalid_version() {
+        let doc = json!({
+            "type": "open-presence",
+            "version": "9.9",
+            "subject": "key:sha256:Vkdap1RjR0wChd9dvyvKtz2mUTWIOem3dIGy6rEHcIw",
+            "public_key": "A6EHv_POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg",
+            "issued_at": "2026-07-11T20:00:00Z",
+            "services": []
+        });
+        let unsigned = UnsignedDocument::new(doc).unwrap();
+        let err = sign(unsigned, &test_private_key()).unwrap_err();
+        assert!(matches!(err, SigningError::ValidationFailed(_)));
+    }
+
+    #[test]
+    fn test_sign_rejects_invalid_timestamp() {
+        let doc = json!({
+            "type": "open-presence",
+            "version": "0.1",
+            "subject": "key:sha256:Vkdap1RjR0wChd9dvyvKtz2mUTWIOem3dIGy6rEHcIw",
+            "public_key": "A6EHv_POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg",
+            "issued_at": "not-a-timestamp",
+            "services": []
+        });
+        let unsigned = UnsignedDocument::new(doc).unwrap();
+        let err = sign(unsigned, &test_private_key()).unwrap_err();
+        assert!(matches!(err, SigningError::ValidationFailed(_)));
+    }
+
+    #[test]
+    fn test_sign_rejects_http_service_url() {
+        let doc = json!({
+            "type": "open-presence",
+            "version": "0.1",
+            "subject": "key:sha256:Vkdap1RjR0wChd9dvyvKtz2mUTWIOem3dIGy6rEHcIw",
+            "public_key": "A6EHv_POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg",
+            "issued_at": "2026-07-11T20:00:00Z",
+            "services": [{"type": "profile", "url": "http://example.com"}]
+        });
+        let unsigned = UnsignedDocument::new(doc).unwrap();
+        let err = sign(unsigned, &test_private_key()).unwrap_err();
+        assert!(matches!(err, SigningError::ValidationFailed(_)));
     }
 }

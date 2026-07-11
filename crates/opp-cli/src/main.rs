@@ -4,7 +4,7 @@ use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine;
 use clap::{Parser, Subcommand};
 use ed25519_dalek::SigningKey;
-use opp_core::{derive_subject, sign, verify, UnsignedDocument, VerificationContext};
+use opp_core::{derive_subject, parse, sign, verify, UnsignedDocument, VerificationContext};
 use std::fs;
 use std::io::Read;
 use std::process;
@@ -193,13 +193,13 @@ fn cmd_sign(document_path: &str, private_key_path: &str, output_path: Option<&st
     // Read the document (with size limit)
     let doc_content = read_limited_file(document_path);
 
-    // Parse as JSON and check for signature
-    let value: serde_json::Value = serde_json::from_slice(&doc_content).unwrap_or_else(|e| {
-        eprintln!("Error: invalid JSON: {}", e);
+    // Parse with duplicate-detecting parser (same strict rules as verification)
+    let parsed = parse(&doc_content).unwrap_or_else(|e| {
+        eprintln!("Error: {}", e);
         process::exit(1);
     });
 
-    let unsigned = UnsignedDocument::new(value).unwrap_or_else(|e| {
+    let unsigned = UnsignedDocument::new(parsed.value().clone()).unwrap_or_else(|e| {
         eprintln!("Error: {}", e);
         process::exit(1);
     });

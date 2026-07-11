@@ -5,11 +5,167 @@
 //! - Timestamp validation (RFC 3339 UTC with Z suffix)
 //! - Service object validation (HTTPS URLs, no credentials)
 //! - Public key encoding validation
+//! - Full document field validation (shared between signing and verification)
 //!
 //! See SPEC.md Sections 4, 5, and 9.
 
 use crate::error::VerificationError;
+use crate::subject::derive_subject;
 use url::Url;
+
+/// Validate all document fields except the signature.
+///
+/// This validation is shared between signing (which validates before producing
+/// a signature) and verification (which validates before checking the signature).
+///
+/// Checks:
+/// - Required fields are present (type, version, subject, public_key, issued_at, services)
+/// - Field types are correct
+/// - Type is "open-presence"
+/// - Version is "0.1"
+/// - Public key is valid Base64url-encoded 32 bytes
+/// - Subject matches the public key
+/// - Timestamps are valid RFC 3339 UTC with Z suffix
+/// - If expires_at is present, it is after issued_at
+/// - Service objects have valid types and HTTPS URLs
+pub fn validate_document_fields(
+    obj: &serde_json::Map<String, serde_json::Value>,
+) -> Result<(), VerificationError> {
+    // Check required fields (signature is not required here — signing adds it)
+    let required_fields = ["type", "version", "subject", "public_key", "issued_at", "services"];
+    for field in &required_fields {
+        if !obj.contains_key(*field) {
+            return Err(VerificationError::MissingField {
+                field: field.to_string(),
+            });
+        }
+    }
+
+    // Validate type
+    let type_val = obj
+        .get("type")
+        .unwrap()
+        .as_str()
+        .ok_or(VerificationError::InvalidFieldType {
+            field: "type".to_string(),
+            expected: "string".to_string(),
+        })?;
+
+    if type_val != "open-presence" {
+        return Err(VerificationError::InvalidType(type_val.to_string()));
+    }
+
+    // Validate version
+    let version_val = obj
+        .get("version")
+        .unwrap()
+        .as_str()
+        .ok_or(VerificationError::InvalidFieldType {
+            field: "version".to_string(),
+            expected: "string".to_string(),
+        })?;
+
+    if version_val != "0.1" {
+        return Err(VerificationError::UnsupportedVersion(
+            version_val.to_string(),
+        ));
+    }
+
+    // Validate public key
+    let public_key_str = obj
+        .get("public_key")
+        .unwrap()
+        .as_str()
+        .ok_or(VerificationError::InvalidFieldType {
+            field: "public_key".to_string(),
+            expected: "string".to_string(),
+        })?;
+
+    let public_key_bytes = validate_public_key_encoding(public_key_str)?;
+
+    // Validate subject matches public key
+    let subject_str = obj
+        .get("subject")
+        .unwrap()
+        .as_str()
+        .ok_or(VerificationError::InvalidFieldType {
+            field: "subject".to_string(),
+            expected: "string".to_string(),
+        })?;
+
+    let expected_subject = derive_subject(&public_key_bytes);
+    if subject_str != expected_subject {
+        return Err(VerificationError::SubjectMismatch);
+    }
+
+    // Validate issued_at
+    let issued_at_str = obj
+        .get("issued_at")
+        .unwrap()
+        .as_str()
+        .ok_or(VerificationError::InvalidFieldType {
+            field: "issued_at".to_string(),
+            expected: "string".to_string(),
+        })?;
+
+    validate_timestamp(issued_at_str, "issued_at")?;
+
+    // Validate expires_at if present
+    if let Some(expires_val) = obj.get("expires_at") {
+        let expires_str = expires_val
+            .as_str()
+            .ok_or(VerificationError::InvalidFieldType {
+                field: "expires_at".to_string(),
+                expected: "string".to_string(),
+            })?;
+        validate_timestamp(expires_str, "expires_at")?;
+
+        // Check ordering
+        use time::format_description::well_known::Rfc3339;
+        use time::OffsetDateTime;
+
+        let issued = OffsetDateTime::parse(issued_at_str, &Rfc3339)
+            .map_err(|e| VerificationError::InvalidIssuedAt(e.to_string()))?;
+        let expires = OffsetDateTime::parse(expires_str, &Rfc3339)
+            .map_err(|e| VerificationError::InvalidExpiresAt(e.to_string()))?;
+
+        if expires <= issued {
+            return Err(VerificationError::ExpirationBeforeIssueTime);
+        }
+    }
+
+    // Validate services
+    let services_val = obj.get("services").unwrap();
+    let services_arr = services_val
+        .as_array()
+        .ok_or(VerificationError::InvalidServices)?;
+
+    for service in services_arr {
+        let service_obj = service
+            .as_object()
+            .ok_or(VerificationError::InvalidServices)?;
+
+        service_obj
+            .get("type")
+            .ok_or(VerificationError::InvalidServiceType)?
+            .as_str()
+            .ok_or(VerificationError::InvalidServiceType)?;
+
+        let svc_url = service_obj
+            .get("url")
+            .ok_or(VerificationError::InvalidServiceUrl(
+                "missing url field".to_string(),
+            ))?
+            .as_str()
+            .ok_or(VerificationError::InvalidServiceUrl(
+                "url must be a string".to_string(),
+            ))?;
+
+        validate_service_url(svc_url)?;
+    }
+
+    Ok(())
+}
 
 /// Validate that a timestamp string is RFC 3339 UTC with the Z suffix.
 pub fn validate_timestamp(value: &str, field_name: &str) -> Result<(), VerificationError> {

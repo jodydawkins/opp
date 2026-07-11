@@ -721,11 +721,18 @@ fn test_sign_reject_already_signed() {
 
 #[test]
 fn test_sign_reject_public_key_mismatch() {
+    // Use a different key pair that will pass field validation but fail key matching
+    let other_key = [0xFFu8; 32];
+    let other_signing = ed25519_dalek::SigningKey::from_bytes(&other_key);
+    let other_public = other_signing.verifying_key().to_bytes();
+    let other_pk_b64 = URL_SAFE_NO_PAD.encode(other_public);
+    let other_subject = derive_subject(&other_public);
+
     let doc = serde_json::json!({
         "type": "open-presence",
         "version": "0.1",
-        "subject": "key:sha256:x",
-        "public_key": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "subject": other_subject,
+        "public_key": other_pk_b64,
         "issued_at": "2026-07-11T20:00:00Z",
         "services": []
     });
@@ -736,6 +743,7 @@ fn test_sign_reject_public_key_mismatch() {
 
 #[test]
 fn test_sign_reject_subject_mismatch() {
+    // Subject doesn't match the public key — caught by document validation
     let doc = serde_json::json!({
         "type": "open-presence",
         "version": "0.1",
@@ -746,7 +754,7 @@ fn test_sign_reject_subject_mismatch() {
     });
     let unsigned = UnsignedDocument::new(doc).unwrap();
     let err = sign(unsigned, &test_private_key()).unwrap_err();
-    assert!(matches!(err, SigningError::SubjectMismatch));
+    assert!(matches!(err, SigningError::ValidationFailed(VerificationError::SubjectMismatch)));
 }
 
 // --- Canonicalization ---

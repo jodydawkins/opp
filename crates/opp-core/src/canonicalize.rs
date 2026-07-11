@@ -77,76 +77,26 @@ fn compare_utf16(a: &str, b: &str) -> std::cmp::Ordering {
 /// Serialize a number per RFC 8785.
 ///
 /// For integers, output the decimal representation.
-/// For floats, use ECMAScript's toString() behavior.
+/// Non-integer (floating-point) numbers are rejected because the current
+/// implementation does not provide fully compliant ECMAScript Number.toString()
+/// serialization. Since OPP's defined fields do not use numeric values,
+/// this only affects unknown extension fields. A future version will add
+/// a proven ECMAScript-compatible number formatter.
 fn write_number(w: &mut Vec<u8>, n: &serde_json::Number) -> Result<(), std::io::Error> {
     if let Some(i) = n.as_i64() {
         write!(w, "{}", i)?;
     } else if let Some(u) = n.as_u64() {
         write!(w, "{}", u)?;
-    } else if let Some(f) = n.as_f64() {
-        // RFC 8785 requires ECMAScript number serialization
-        write_f64(w, f)?;
     } else {
-        // Shouldn't happen with serde_json
-        write!(w, "{}", n)?;
-    }
-    Ok(())
-}
-
-/// Serialize a float per RFC 8785 / ECMAScript Number.toString().
-fn write_f64(w: &mut Vec<u8>, f: f64) -> Result<(), std::io::Error> {
-    if f.is_nan() || f.is_infinite() {
+        // Reject non-integer numbers until a fully compliant ECMAScript
+        // Number.toString() implementation is available.
         return Err(std::io::Error::new(
             std::io::ErrorKind::InvalidData,
-            "NaN and Infinity cannot be represented in JSON",
+            "non-integer numeric values are not yet supported for canonicalization \
+             (RFC 8785 requires ECMAScript Number.toString() serialization)",
         ));
     }
-
-    if f == 0.0 {
-        // Both +0 and -0 serialize as "0"
-        w.write_all(b"0")?;
-        return Ok(());
-    }
-
-    // Use ryu for shortest representation, which matches ECMAScript toString
-    // We'll use a simple approach: format with enough precision and strip trailing zeros
-    let s = format_ecmascript_number(f);
-    w.write_all(s.as_bytes())?;
     Ok(())
-}
-
-/// Format a float using ECMAScript Number serialization rules.
-///
-/// This follows the algorithm in ECMA-262 §7.1.12.1 (NumberToString).
-fn format_ecmascript_number(f: f64) -> String {
-    if f == 0.0 {
-        return "0".to_string();
-    }
-
-    // Use ryu to get the shortest representation
-    let mut buf = ryu_ecmascript(f);
-
-    // Handle negative
-    if buf.starts_with('-') {
-        let inner = ryu_ecmascript(-f);
-        buf = format!("-{}", inner);
-    }
-
-    buf
-}
-
-/// Convert f64 to string using ECMAScript-compatible notation.
-fn ryu_ecmascript(f: f64) -> String {
-    if f == 0.0 {
-        return "0".to_string();
-    }
-
-    // Get the shortest decimal representation
-    let s = format!("{}", f);
-
-    // Rust's Display for f64 is already pretty close to ES toString
-    // but we need to handle some edge cases
-    s
 }
 
 /// Serialize a JSON string with minimal escaping per RFC 8785.
@@ -231,5 +181,33 @@ mod tests {
         let result = canonicalize(&value).unwrap();
         let expected = r#"{"expires_at":"2026-10-11T20:00:00Z","issued_at":"2026-07-11T20:00:00Z","public_key":"A6EHv_POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg","services":[{"type":"profile","url":"https://example.com/jody"},{"type":"feed","url":"https://example.com/jody/feed"}],"subject":"key:sha256:Vkdap1RjR0wChd9dvyvKtz2mUTWIOem3dIGy6rEHcIw","type":"open-presence","version":"0.1"}"#;
         assert_eq!(std::str::from_utf8(&result).unwrap(), expected);
+    }
+
+    #[test]
+    fn test_canonicalize_integers_accepted() {
+        let value = json!({"count": 42, "negative": -1, "zero": 0});
+        let result = canonicalize(&value).unwrap();
+        assert_eq!(
+            std::str::from_utf8(&result).unwrap(),
+            r#"{"count":42,"negative":-1,"zero":0}"#
+        );
+    }
+
+    #[test]
+    fn test_canonicalize_rejects_float() {
+        let value: Value = serde_json::from_str(r#"{"pi": 3.14}"#).unwrap();
+        let result = canonicalize(&value);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("non-integer numeric values"));
+    }
+
+    #[test]
+    fn test_canonicalize_null_bool_primitives() {
+        let value = json!({"a": null, "b": true, "c": false});
+        let result = canonicalize(&value).unwrap();
+        assert_eq!(
+            std::str::from_utf8(&result).unwrap(),
+            r#"{"a":null,"b":true,"c":false}"#
+        );
     }
 }

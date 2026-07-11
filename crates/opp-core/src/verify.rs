@@ -17,8 +17,7 @@
 use crate::canonicalize::canonicalize;
 use crate::error::VerificationError;
 use crate::parse::parse;
-use crate::subject::derive_subject;
-use crate::validate::{validate_public_key_encoding, validate_service_url, validate_timestamp};
+use crate::validate::{validate_document_fields, validate_public_key_encoding};
 use crate::{PresenceDocument, ServiceObject};
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine;
@@ -84,158 +83,33 @@ pub fn verify(
 
     let obj = parsed.value.as_object().unwrap();
 
-    // Step 2: Check required fields
-    let required_fields = [
-        "type",
-        "version",
-        "subject",
-        "public_key",
-        "issued_at",
-        "services",
-        "signature",
-    ];
-    for field in &required_fields {
-        if !obj.contains_key(*field) {
-            return Err(VerificationError::MissingField {
-                field: field.to_string(),
-            });
-        }
+    // Step 2: Check that the signature field is present (required for verification)
+    if !obj.contains_key("signature") {
+        return Err(VerificationError::MissingField {
+            field: "signature".to_string(),
+        });
     }
 
-    // Step 3: Validate field types
-    let type_val =
-        obj.get("type")
-            .unwrap()
-            .as_str()
-            .ok_or(VerificationError::InvalidFieldType {
-                field: "type".to_string(),
-                expected: "string".to_string(),
-            })?;
+    // Step 3: Validate all document fields (type, version, public key, subject,
+    // timestamps, services) using the shared validation logic
+    validate_document_fields(obj)?;
 
-    if type_val != "open-presence" {
-        return Err(VerificationError::InvalidType(type_val.to_string()));
-    }
+    // Step 4: Check expiration against verification time
+    let issued_at_str = obj.get("issued_at").unwrap().as_str().unwrap();
+    let expires_at_str = obj
+        .get("expires_at")
+        .map(|v| v.as_str().unwrap().to_string());
 
-    let version_val =
-        obj.get("version")
-            .unwrap()
-            .as_str()
-            .ok_or(VerificationError::InvalidFieldType {
-                field: "version".to_string(),
-                expected: "string".to_string(),
-            })?;
-
-    if version_val != "0.1" {
-        return Err(VerificationError::UnsupportedVersion(
-            version_val.to_string(),
-        ));
-    }
-
-    let subject_str =
-        obj.get("subject")
-            .unwrap()
-            .as_str()
-            .ok_or(VerificationError::InvalidFieldType {
-                field: "subject".to_string(),
-                expected: "string".to_string(),
-            })?;
-
-    let public_key_str =
-        obj.get("public_key")
-            .unwrap()
-            .as_str()
-            .ok_or(VerificationError::InvalidFieldType {
-                field: "public_key".to_string(),
-                expected: "string".to_string(),
-            })?;
-
-    let issued_at_str =
-        obj.get("issued_at")
-            .unwrap()
-            .as_str()
-            .ok_or(VerificationError::InvalidFieldType {
-                field: "issued_at".to_string(),
-                expected: "string".to_string(),
-            })?;
-
-    // Step 4: Validate public key
-    let public_key_bytes = validate_public_key_encoding(public_key_str)?;
-
-    // Step 5: Verify subject matches public key
-    let expected_subject = derive_subject(&public_key_bytes);
-    if subject_str != expected_subject {
-        return Err(VerificationError::SubjectMismatch);
-    }
-
-    // Step 6: Validate timestamps
-    validate_timestamp(issued_at_str, "issued_at")?;
-
-    let expires_at_str = if let Some(expires_val) = obj.get("expires_at") {
-        let s = expires_val
-            .as_str()
-            .ok_or(VerificationError::InvalidFieldType {
-                field: "expires_at".to_string(),
-                expected: "string".to_string(),
-            })?;
-        validate_timestamp(s, "expires_at")?;
-        Some(s.to_string())
-    } else {
-        None
-    };
-
-    // Step 7: Check expiration ordering and document expiry
     if let Some(ref expires_at) = expires_at_str {
-        let issued = OffsetDateTime::parse(issued_at_str, &Rfc3339)
-            .map_err(|e| VerificationError::InvalidIssuedAt(e.to_string()))?;
         let expires = OffsetDateTime::parse(expires_at, &Rfc3339)
             .map_err(|e| VerificationError::InvalidExpiresAt(e.to_string()))?;
-
-        if expires <= issued {
-            return Err(VerificationError::ExpirationBeforeIssueTime);
-        }
 
         if context.verification_time >= expires {
             return Err(VerificationError::DocumentExpired);
         }
     }
 
-    // Step 8: Validate services
-    let services_val = obj.get("services").unwrap();
-    let services_arr = services_val
-        .as_array()
-        .ok_or(VerificationError::InvalidServices)?;
-
-    let mut services = Vec::new();
-    for service in services_arr {
-        let service_obj = service
-            .as_object()
-            .ok_or(VerificationError::InvalidServices)?;
-
-        let svc_type = service_obj
-            .get("type")
-            .ok_or(VerificationError::InvalidServiceType)?
-            .as_str()
-            .ok_or(VerificationError::InvalidServiceType)?;
-
-        let svc_url = service_obj
-            .get("url")
-            .ok_or(VerificationError::InvalidServiceUrl(
-                "missing url field".to_string(),
-            ))?
-            .as_str()
-            .ok_or(VerificationError::InvalidServiceUrl(
-                "url must be a string".to_string(),
-            ))?;
-
-        validate_service_url(svc_url)?;
-
-        services.push(ServiceObject {
-            service_type: svc_type.to_string(),
-            url: svc_url.to_string(),
-        });
-    }
-
-    // Step 9: Validate and verify signature
+    // Step 5: Validate and verify signature
     let sig_val = obj.get("signature").unwrap();
     let sig_obj = sig_val
         .as_object()
@@ -295,6 +169,9 @@ pub fn verify(
         canonicalize(&canon_value).map_err(VerificationError::CanonicalizationFailed)?;
 
     // Verify the signature
+    let public_key_str = obj.get("public_key").unwrap().as_str().unwrap();
+    let public_key_bytes =
+        validate_public_key_encoding(public_key_str)?;
     let verifying_key = VerifyingKey::from_bytes(&public_key_bytes)
         .map_err(|_| VerificationError::InvalidPublicKeyEncoding)?;
 
@@ -304,6 +181,18 @@ pub fn verify(
     verifying_key
         .verify(&canonical_bytes, &signature)
         .map_err(|_| VerificationError::SignatureVerificationFailed)?;
+
+    // Build the verified document from already-validated fields
+    let subject_str = obj.get("subject").unwrap().as_str().unwrap();
+    let services_arr = obj.get("services").unwrap().as_array().unwrap();
+    let mut services = Vec::new();
+    for service in services_arr {
+        let service_obj = service.as_object().unwrap();
+        services.push(ServiceObject {
+            service_type: service_obj.get("type").unwrap().as_str().unwrap().to_string(),
+            url: service_obj.get("url").unwrap().as_str().unwrap().to_string(),
+        });
+    }
 
     Ok(VerifiedDocument {
         document: PresenceDocument {

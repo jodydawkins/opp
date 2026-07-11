@@ -24,9 +24,6 @@ pub enum SigningError {
     #[error("public key does not match the private key")]
     PublicKeyMismatch,
 
-    #[error("subject does not match the public key")]
-    SubjectMismatch,
-
     #[error("canonicalization failed: {0}")]
     CanonicalizationFailed(String),
 

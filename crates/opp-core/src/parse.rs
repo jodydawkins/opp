@@ -195,6 +195,11 @@ fn parse_string_value(input: &mut &[u8]) -> Result<String, ParseError> {
                     Some(b't') => result.push('\t'),
                     Some(b'u') => {
                         *input = &input[1..];
+                        if input.len() < 4 {
+                            return Err(ParseError::InvalidJson(
+                                "truncated unicode escape".to_string(),
+                            ));
+                        }
                         let hex = std::str::from_utf8(&input[..4])
                             .map_err(|_| ParseError::InvalidJson("invalid escape".to_string()))?;
                         let code = u16::from_str_radix(hex, 16)
@@ -202,22 +207,41 @@ fn parse_string_value(input: &mut &[u8]) -> Result<String, ParseError> {
                         *input = &input[4..];
                         // Handle surrogate pairs
                         if (0xD800..=0xDBFF).contains(&code) {
-                            if input.starts_with(b"\\u") {
-                                *input = &input[2..];
-                                let hex2 = std::str::from_utf8(&input[..4]).map_err(|_| {
-                                    ParseError::InvalidJson("invalid escape".to_string())
-                                })?;
-                                let code2 = u16::from_str_radix(hex2, 16).map_err(|_| {
-                                    ParseError::InvalidJson("invalid escape".to_string())
-                                })?;
-                                *input = &input[4..];
-                                let codepoint = 0x10000
-                                    + ((code as u32 - 0xD800) << 10)
-                                    + (code2 as u32 - 0xDC00);
-                                result.push(char::from_u32(codepoint).ok_or_else(|| {
-                                    ParseError::InvalidJson("invalid codepoint".to_string())
-                                })?);
+                            // High surrogate — must be followed by \uXXXX low surrogate
+                            if !input.starts_with(b"\\u") {
+                                return Err(ParseError::InvalidJson(
+                                    "lone high surrogate".to_string(),
+                                ));
                             }
+                            *input = &input[2..];
+                            if input.len() < 4 {
+                                return Err(ParseError::InvalidJson(
+                                    "truncated unicode escape in surrogate pair".to_string(),
+                                ));
+                            }
+                            let hex2 = std::str::from_utf8(&input[..4]).map_err(|_| {
+                                ParseError::InvalidJson("invalid escape".to_string())
+                            })?;
+                            let code2 = u16::from_str_radix(hex2, 16).map_err(|_| {
+                                ParseError::InvalidJson("invalid escape".to_string())
+                            })?;
+                            if !(0xDC00..=0xDFFF).contains(&code2) {
+                                return Err(ParseError::InvalidJson(
+                                    "invalid low surrogate".to_string(),
+                                ));
+                            }
+                            *input = &input[4..];
+                            let codepoint = 0x10000
+                                + ((code as u32 - 0xD800) << 10)
+                                + (code2 as u32 - 0xDC00);
+                            result.push(char::from_u32(codepoint).ok_or_else(|| {
+                                ParseError::InvalidJson("invalid codepoint".to_string())
+                            })?);
+                        } else if (0xDC00..=0xDFFF).contains(&code) {
+                            // Lone low surrogate
+                            return Err(ParseError::InvalidJson(
+                                "lone low surrogate".to_string(),
+                            ));
                         } else {
                             result.push(char::from_u32(code as u32).ok_or_else(|| {
                                 ParseError::InvalidJson("invalid codepoint".to_string())
@@ -313,6 +337,68 @@ mod tests {
     #[test]
     fn test_reject_malformed_json() {
         let input = br#"{invalid"#;
+        let err = parse(input).unwrap_err();
+        assert!(matches!(err, ParseError::InvalidJson(_)));
+    }
+
+    #[test]
+    fn test_reject_truncated_unicode_escape() {
+        // \u followed by fewer than 4 hex digits
+        let input = b"{\"key\\u00\": 1}";
+        let err = parse(input).unwrap_err();
+        assert!(matches!(err, ParseError::InvalidJson(_)));
+    }
+
+    #[test]
+    fn test_reject_truncated_unicode_escape_at_eof() {
+        let input = b"{\"key\\u\"";
+        let err = parse(input).unwrap_err();
+        assert!(matches!(err, ParseError::InvalidJson(_)));
+    }
+
+    #[test]
+    fn test_reject_lone_high_surrogate() {
+        // High surrogate without a following \uXXXX
+        let input = b"{\"key\\uD800\": 1}";
+        let err = parse(input).unwrap_err();
+        assert!(matches!(err, ParseError::InvalidJson(_)));
+    }
+
+    #[test]
+    fn test_reject_lone_low_surrogate() {
+        // Low surrogate without a preceding high surrogate
+        let input = b"{\"key\\uDC00\": 1}";
+        let err = parse(input).unwrap_err();
+        assert!(matches!(err, ParseError::InvalidJson(_)));
+    }
+
+    #[test]
+    fn test_reject_invalid_low_surrogate() {
+        // High surrogate followed by a non-surrogate \uXXXX
+        let input = b"{\"key\\uD800\\u0041\": 1}";
+        let err = parse(input).unwrap_err();
+        assert!(matches!(err, ParseError::InvalidJson(_)));
+    }
+
+    #[test]
+    fn test_reject_truncated_surrogate_pair() {
+        // High surrogate followed by \u with truncated hex
+        let input = b"{\"key\\uD800\\u\"";
+        let err = parse(input).unwrap_err();
+        assert!(matches!(err, ParseError::InvalidJson(_)));
+    }
+
+    #[test]
+    fn test_valid_surrogate_pair() {
+        // Valid surrogate pair for U+1F600 (😀): \uD83D\uDE00
+        let input = br#"{"key\uD83D\uDE00": "val"}"#;
+        let result = parse(input);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_reject_high_surrogate_at_end_of_string() {
+        let input = b"{\"abc\\uD800\": 1}";
         let err = parse(input).unwrap_err();
         assert!(matches!(err, ParseError::InvalidJson(_)));
     }
