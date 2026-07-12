@@ -10,7 +10,13 @@ use std::process;
 use time::OffsetDateTime;
 
 /// Human-readable presentation of a verified OPP presence document.
-fn render(subject: &str, public_key: &str, issued_at: &str, expires_at: Option<&str>, services: &[opp_core::ServiceObject]) {
+fn render(
+    subject: &str,
+    public_key: &str,
+    issued_at: &str,
+    expires_at: Option<&str>,
+    services: &[opp_core::ServiceObject],
+) {
     println!("Open Presence Protocol\n");
     println!("Status: VERIFIED\n");
 
@@ -41,18 +47,19 @@ fn render(subject: &str, public_key: &str, issued_at: &str, expires_at: Option<&
 /// Read input from a file or stdin.
 fn read_input(path: Option<&str>) -> Vec<u8> {
     match path {
-        Some(p) => {
-            std::fs::read(p).unwrap_or_else(|e| {
-                eprintln!("Error: cannot read '{p}': {e}");
-                process::exit(1);
-            })
-        }
+        Some(p) => std::fs::read(p).unwrap_or_else(|e| {
+            eprintln!("Error: cannot read '{p}': {e}");
+            process::exit(1);
+        }),
         None => {
             let mut buf = Vec::new();
-            io::stdin().lock().read_to_end(&mut buf).unwrap_or_else(|e| {
-                eprintln!("Error: failed to read stdin: {e}");
-                process::exit(1);
-            });
+            io::stdin()
+                .lock()
+                .read_to_end(&mut buf)
+                .unwrap_or_else(|e| {
+                    eprintln!("Error: failed to read stdin: {e}");
+                    process::exit(1);
+                });
             buf
         }
     }
