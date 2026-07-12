@@ -1,6 +1,6 @@
-Why OPP?
+# Why OPP?
 
-The Web Should Be About People
+## The Web Should Be About People
 
 The internet has made it easier than ever to connect with one another. Yet over time, our online identities have become fragmented across dozens of platforms. Every service asks us to create another profile, build another audience, and maintain another presence.
 
@@ -14,7 +14,7 @@ The Open Presence Protocol (OPP) exists to make people—not platforms—the cen
 
 ---
 
-The Problem
+## The Problem
 
 The modern web is fragmented.
 
@@ -30,7 +30,7 @@ Our online presence should not depend on which platforms happen to be popular to
 
 ---
 
-Our Vision
+## Our Vision
 
 We envision a web where every person has a single, portable presence that they control.
 
@@ -44,7 +44,7 @@ Competition should be based on innovation, not captivity.
 
 ---
 
-What OPP Is
+## What OPP Is
 
 OPP is an open protocol for publishing and discovering an online presence.
 
@@ -58,47 +58,47 @@ The protocol is intentionally small. Its purpose is to solve one problem well an
 
 ---
 
-What OPP Is Not
+## What OPP Is Not
 
-OPP is not another social network.
+- OPP is not another social network.
 
-It is not another content platform.
+- It is not another content platform.
 
-It is not another identity provider.
+- It is not another identity provider.
 
-It is not a blockchain project.
+- It is not a blockchain project.
 
-It is not an advertising network.
+- It is not an advertising network.
 
-It does not attempt to replace existing communities or services.
+- It does not attempt to replace existing communities or services.
 
 Instead, OPP complements the existing web by making it easier for people to be discovered regardless of where they choose to participate.
 
 ---
 
-Our Principles
+## Our Principles
 
-People Own Their Presence
+### People Own Their Presence
 
 A person's online presence belongs to them—not to any platform they happen to use today.
 
-Open by Default
+### Open by Default
 
 Anyone should be free to implement OPP without permission, licensing fees, or centralized approval.
 
-Simple Before Clever
+## Simple Before Clever
 
 Complexity is permanent.
 
 Every addition to the protocol should justify its existence by making OPP meaningfully better while preserving its simplicity.
 
-Decentralized by Design
+### Decentralized by Design
 
 No single company, organization, or government should control the protocol or the network that supports it.
 
 An open ecosystem is more resilient than a centralized one.
 
-Built to Last
+### Built to Last
 
 Technology changes.
 
@@ -112,7 +112,7 @@ OPP should be designed with decades in mind, not product cycles.
 
 ---
 
-An Invitation
+## An Invitation
 
 OPP is an open project built for the benefit of the web as a whole.
 
@@ -124,7 +124,7 @@ If a proposal makes the protocol simpler, more interoperable, more resilient, or
 
 ---
 
-Our North Star
+## Our North Star
 
 Every design decision should answer a simple question:
 
@@ -132,4 +132,4 @@ Does this help people follow people, or does it encourage them to follow platfor
 
 If OPP remains true to that principle, it will continue moving in the right direction.
 
-Follow people, not platforms.
+**Follow people, not platforms.**
