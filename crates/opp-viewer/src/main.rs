@@ -67,6 +67,10 @@ fn read_input(path: Option<&str>) -> Vec<u8> {
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
+    if args.len() > 2 {
+        eprintln!("Error: unexpected extra arguments (expected at most one file path)");
+        process::exit(2);
+    }
     let doc_path = args.get(1).map(|s| s.as_str());
 
     let doc_bytes = read_input(doc_path);

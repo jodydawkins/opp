@@ -12,3 +12,8 @@ path = "src/main.rs"
 [dependencies]
 opp-core = { path = "../opp-core" }
 time = { version = "0.3", features = ["parsing", "formatting"] }
+
+[dev-dependencies]
+base64 = "0.22"
+ed25519-dalek = { version = "2", features = ["rand_core"] }
+serde_json = "1"
