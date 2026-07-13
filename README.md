@@ -128,6 +128,21 @@ Verify at a specific time:
 opp verify signed-presence.json --at 2026-07-12T00:00:00Z
 ```
 
+### Viewer
+
+Build and run the terminal-based reference viewer:
+
+```shell
+cargo build -p opp-viewer
+cat vectors/valid/signed-document.json | cargo run -p opp-viewer
+```
+
+The viewer reads a signed OPP presence document from standard input or a file path, verifies it using `opp-core`, and renders it in a human-readable format.
+
+```shell
+cargo run -p opp-viewer -- vectors/valid/signed-document.json
+```
+
 ## Deterministic Test Vector
 
 The following private-key seed is used for automated testing only. **It must never be used for a real identity.**

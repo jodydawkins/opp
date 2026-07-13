@@ -1,3 +1,3 @@
 [workspace]
-members = ["crates/opp-core", "crates/opp-cli"]
+members = ["crates/opp-core", "crates/opp-cli", "crates/opp-viewer"]
 resolver = "2"
