@@ -79,7 +79,12 @@ fn run_file_with_args(file: &str, extra_args: &[&str]) -> i32 {
         stdin.write_all(b"").unwrap();
     }
 
-    child.wait_with_output().expect("failed to wait on viewer").status.code().unwrap_or(-1)
+    child
+        .wait_with_output()
+        .expect("failed to wait on viewer")
+        .status
+        .code()
+        .unwrap_or(-1)
 }
 
 // --- Valid input exits successfully ---
