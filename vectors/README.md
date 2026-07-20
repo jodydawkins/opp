@@ -27,6 +27,8 @@ The private key in this directory is for automated testing only. It MUST NOT be 
 
 ## Using These Vectors
 
+`rfc8785-number-serialization.json` contains the RFC 8785 Appendix B IEEE-754 number serialization cases. An `expected` value of `null` identifies a non-finite value that JSON and RFC 8785 require implementations to reject.
+
 Each file in `invalid/` is named to suggest the expected failure category. Implementations in other languages should:
 
 1. Attempt to verify each file in `valid/` and confirm success.

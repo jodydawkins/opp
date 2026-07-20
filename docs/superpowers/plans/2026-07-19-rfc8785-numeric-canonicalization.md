@@ -6,7 +6,7 @@
 
 **Architecture:** Preserve the existing recursive canonicalizer and replace only `write_number`. Classify integer-backed `serde_json::Number` values for range validation, convert every accepted value to finite `f64`, and format it through `ryu_js::Buffer`. Drive conformance from a reusable JSON file containing the RFC 8785 Appendix B IEEE-754 bit patterns and expected output.
 
-**Tech Stack:** Rust 2021, `serde_json`, `ryu-js` 1.0, Cargo workspace tests.
+**Tech Stack:** Rust 2021, `serde_json` with `float_roundtrip`, `ryu-js` 1.0, Cargo workspace tests.
 
 ## Global Constraints
 
@@ -154,10 +154,11 @@ Expected: `test_rfc8785_appendix_b_number_serialization` and `test_canonicalize_
 
 - [ ] **Step 4: Add the formatter dependency**
 
-Add to `[dependencies]` in `crates/opp-core/Cargo.toml`:
+Add `ryu-js` and enable exact float parsing in `[dependencies]` in `crates/opp-core/Cargo.toml`:
 
 ```toml
 ryu-js = "1.0"
+serde_json = { version = "1", features = ["float_roundtrip"] }
 ```
 
 Then run:

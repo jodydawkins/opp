@@ -11,6 +11,7 @@ Keep the existing OPP canonicalizer and make the smallest targeted change to its
 ## Numeric Input Rules
 
 - Convert finite fractional and exponential JSON numbers to `f64` and serialize them with `ryu-js`.
+- Enable `serde_json`'s `float_roundtrip` feature so decimal input is converted to the nearest IEEE-754 value before canonicalization.
 - Convert integer-valued JSON numbers to `f64` and serialize them through the same `ryu-js` path.
 - Accept integer tokens only in the inclusive safe-integer range `-9007199254740991..=9007199254740991` so the conversion cannot silently change their value.
 - Reject integer tokens outside that range with a canonicalization error.
