@@ -10,6 +10,8 @@ OPP intentionally does not define identity, content, messaging, or social networ
 
 Read the specification in [SPEC.md](SPEC.md).
 
+New to OPP? Follow [Publish Your First OPP Presence](docs/PUBLISH-YOUR-FIRST-PRESENCE.md) to create, sign, host, and verify your first presence document.
+
 ## Reference Implementation
 
 This repository contains the OPP 0.1 reference implementation in Rust.
@@ -190,6 +192,7 @@ opp/
 │   └── opp-cli/            # CLI application
 │       ├── Cargo.toml
 │       └── src/
+├── docs/                   # Publishing and usage guides
 ├── vectors/                # Language-neutral test vectors
 │   ├── valid/
 │   ├── invalid/
