@@ -33,9 +33,9 @@ This repository contains the OPP 0.1 reference implementation in Rust.
 - Access control or persistent storage
 - User accounts or web interface
 
-### Limitations
+### Numeric canonicalization
 
-The current reference implementation supports integer JSON numbers but rejects non-integer numbers during canonicalization. Full RFC 8785 number serialization will be added before the implementation is considered complete.
+JSON numbers are canonicalized according to RFC 8785 using ECMAScript-compatible IEEE-754 double serialization. Integer tokens outside JavaScript's exact safe-integer range are rounded to the nearest representable double according to ECMAScript semantics.
 
 ## Building
 

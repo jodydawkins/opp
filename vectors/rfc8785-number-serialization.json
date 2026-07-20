@@ -1,0 +1,32 @@
+{
+  "source": "RFC 8785 Appendix B",
+  "cases": [
+    { "ieee754": "0000000000000000", "expected": "0", "comment": "Zero" },
+    { "ieee754": "8000000000000000", "expected": "0", "comment": "Minus zero" },
+    { "ieee754": "0000000000000001", "expected": "5e-324", "comment": "Min positive number" },
+    { "ieee754": "8000000000000001", "expected": "-5e-324", "comment": "Min negative number" },
+    { "ieee754": "7fefffffffffffff", "expected": "1.7976931348623157e+308", "comment": "Max positive number" },
+    { "ieee754": "ffefffffffffffff", "expected": "-1.7976931348623157e+308", "comment": "Max negative number" },
+    { "ieee754": "4340000000000000", "expected": "9007199254740992", "comment": "Max positive integer sample" },
+    { "ieee754": "c340000000000000", "expected": "-9007199254740992", "comment": "Max negative integer sample" },
+    { "ieee754": "4430000000000000", "expected": "295147905179352830000", "comment": "Approximately 2^68" },
+    { "ieee754": "7fffffffffffffff", "expected": null, "comment": "NaN" },
+    { "ieee754": "7ff0000000000000", "expected": null, "comment": "Infinity" },
+    { "ieee754": "fff0000000000000", "expected": null, "comment": "Negative infinity" },
+    { "ieee754": "44b52d02c7e14af5", "expected": "9.999999999999997e+22" },
+    { "ieee754": "44b52d02c7e14af6", "expected": "1e+23" },
+    { "ieee754": "44b52d02c7e14af7", "expected": "1.0000000000000001e+23" },
+    { "ieee754": "444b1ae4d6e2ef4e", "expected": "999999999999999700000" },
+    { "ieee754": "444b1ae4d6e2ef4f", "expected": "999999999999999900000" },
+    { "ieee754": "444b1ae4d6e2ef50", "expected": "1e+21" },
+    { "ieee754": "3eb0c6f7a0b5ed8c", "expected": "9.999999999999997e-7" },
+    { "ieee754": "3eb0c6f7a0b5ed8d", "expected": "0.000001" },
+    { "ieee754": "41b3de4355555553", "expected": "333333333.3333332" },
+    { "ieee754": "41b3de4355555554", "expected": "333333333.33333325" },
+    { "ieee754": "41b3de4355555555", "expected": "333333333.3333333" },
+    { "ieee754": "41b3de4355555556", "expected": "333333333.3333334" },
+    { "ieee754": "41b3de4355555557", "expected": "333333333.33333343" },
+    { "ieee754": "becbf647612f3696", "expected": "-0.0000033333333333333333" },
+    { "ieee754": "43143ff3c1cb0959", "expected": "1424953923781206.2", "comment": "Round to even" }
+  ]
+}

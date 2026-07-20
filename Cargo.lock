@@ -446,6 +446,7 @@ dependencies = [
  "base64",
  "ed25519-dalek",
  "rand",
+ "ryu-js",
  "serde",
  "serde_json",
  "sha2",
@@ -561,6 +562,12 @@ checksum = "cfcb3a22ef46e85b45de6ee7e79d063319ebb6594faafcf1c225ea92ab6e9b92"
 dependencies = [
  "semver",
 ]
+
+[[package]]
+name = "ryu-js"
+version = "1.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "04d056b875a9d2e6cb9a61d127afee9ac5999b9f87bcb32079d1318e505be714"
 
 [[package]]
 name = "semver"

@@ -74,29 +74,24 @@ fn compare_utf16(a: &str, b: &str) -> std::cmp::Ordering {
     a_units.cmp(&b_units)
 }
 
-/// Serialize a number per RFC 8785.
-///
-/// For integers, output the decimal representation.
-/// Non-integer (floating-point) numbers are rejected because the current
-/// implementation does not provide fully compliant ECMAScript Number.toString()
-/// serialization. Since OPP's defined fields do not use numeric values,
-/// this only affects unknown extension fields. A future version will add
-/// a proven ECMAScript-compatible number formatter.
+/// Serialize a JSON number with ECMAScript `Number.toString()` semantics.
 fn write_number(w: &mut Vec<u8>, n: &serde_json::Number) -> Result<(), std::io::Error> {
-    if let Some(i) = n.as_i64() {
-        write!(w, "{}", i)?;
-    } else if let Some(u) = n.as_u64() {
-        write!(w, "{}", u)?;
-    } else {
-        // Reject non-integer numbers until a fully compliant ECMAScript
-        // Number.toString() implementation is available.
+    let value = n.as_f64().ok_or_else(|| {
+        std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "numeric value cannot be represented as an IEEE-754 double",
+        )
+    })?;
+
+    if !value.is_finite() {
         return Err(std::io::Error::new(
             std::io::ErrorKind::InvalidData,
-            "non-integer numeric values are not yet supported for canonicalization \
-             (RFC 8785 requires ECMAScript Number.toString() serialization)",
+            "non-finite numeric values are not permitted by RFC 8785",
         ));
     }
-    Ok(())
+
+    let mut buffer = ryu_js::Buffer::new();
+    w.write_all(buffer.format(value).as_bytes())
 }
 
 /// Serialize a JSON string with minimal escaping per RFC 8785.
@@ -129,6 +124,19 @@ fn write_string(w: &mut Vec<u8>, s: &str) -> Result<(), std::io::Error> {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[derive(serde::Deserialize)]
+    struct NumberVectors {
+        cases: Vec<NumberVector>,
+    }
+
+    #[derive(serde::Deserialize)]
+    struct NumberVector {
+        ieee754: String,
+        expected: Option<String>,
+        #[serde(default)]
+        comment: String,
+    }
 
     #[test]
     fn test_canonicalize_sorted_keys() {
@@ -194,11 +202,65 @@ mod tests {
     }
 
     #[test]
-    fn test_canonicalize_rejects_float() {
-        let value: Value = serde_json::from_str(r#"{"pi": 3.14}"#).unwrap();
-        let result = canonicalize(&value);
-        assert!(result.is_err());
-        assert!(result.unwrap_err().contains("non-integer numeric values"));
+    fn test_rfc8785_appendix_b_number_serialization() {
+        let vectors: NumberVectors = serde_json::from_str(include_str!(
+            "../../../vectors/rfc8785-number-serialization.json"
+        ))
+        .unwrap();
+
+        for case in vectors.cases {
+            let bits = u64::from_str_radix(&case.ieee754, 16).unwrap();
+            let number = serde_json::Number::from_f64(f64::from_bits(bits));
+
+            match case.expected {
+                Some(expected) => {
+                    let value = Value::Number(number.unwrap());
+                    let actual = String::from_utf8(canonicalize(&value).unwrap()).unwrap();
+                    assert_eq!(actual, expected, "{} ({})", case.ieee754, case.comment);
+                }
+                None => assert!(
+                    number.is_none(),
+                    "{} ({}) must not be representable as JSON",
+                    case.ieee754,
+                    case.comment
+                ),
+            }
+        }
+    }
+
+    #[test]
+    fn test_canonicalize_all_numeric_forms() {
+        let value: Value = serde_json::from_str(
+            r#"[-0,1,-1,1.5,-1.5,0.1,0.01,0.001,1e30,1e-30,9007199254740991,-9007199254740991]"#,
+        )
+        .unwrap();
+
+        let result = String::from_utf8(canonicalize(&value).unwrap()).unwrap();
+
+        assert_eq!(
+            result,
+            "[0,1,-1,1.5,-1.5,0.1,0.01,0.001,1e+30,1e-30,9007199254740991,-9007199254740991]"
+        );
+    }
+
+    #[test]
+    fn test_canonicalize_large_integer_tokens_with_ieee754_semantics() {
+        for (input, expected) in [
+            ("9007199254740992", "9007199254740992"),
+            ("9007199254740993", "9007199254740992"),
+            ("-9007199254740992", "-9007199254740992"),
+            ("295147905179352830000", "295147905179352830000"),
+            ("9.999999999999997e+22", "9.999999999999997e+22"),
+            ("1e+23", "1e+23"),
+            ("1.0000000000000001e+23", "1.0000000000000001e+23"),
+            ("999999999999999700000", "999999999999999700000"),
+            ("999999999999999900000", "999999999999999900000"),
+            ("1e+21", "1e+21"),
+        ] {
+            let value: Value = serde_json::from_str(input).unwrap();
+            let actual = String::from_utf8(canonicalize(&value).unwrap()).unwrap();
+            assert_eq!(actual, expected, "input: {input}");
+        }
     }
 
     #[test]
