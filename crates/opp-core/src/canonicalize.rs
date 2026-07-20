@@ -76,18 +76,6 @@ fn compare_utf16(a: &str, b: &str) -> std::cmp::Ordering {
 
 /// Serialize a JSON number with ECMAScript `Number.toString()` semantics.
 fn write_number(w: &mut Vec<u8>, n: &serde_json::Number) -> Result<(), std::io::Error> {
-    const MAX_SAFE_INTEGER: u64 = 9_007_199_254_740_991;
-
-    if n.as_i64()
-        .is_some_and(|value| value.unsigned_abs() > MAX_SAFE_INTEGER)
-        || n.as_u64().is_some_and(|value| value > MAX_SAFE_INTEGER)
-    {
-        return Err(std::io::Error::new(
-            std::io::ErrorKind::InvalidData,
-            "integer numeric value is outside the IEEE-754 safe integer range",
-        ));
-    }
-
     let value = n.as_f64().ok_or_else(|| {
         std::io::Error::new(
             std::io::ErrorKind::InvalidData,
@@ -256,11 +244,22 @@ mod tests {
     }
 
     #[test]
-    fn test_canonicalize_rejects_integers_outside_safe_range() {
-        for input in ["9007199254740992", "-9007199254740992"] {
+    fn test_canonicalize_large_integer_tokens_with_ieee754_semantics() {
+        for (input, expected) in [
+            ("9007199254740992", "9007199254740992"),
+            ("9007199254740993", "9007199254740992"),
+            ("-9007199254740992", "-9007199254740992"),
+            ("295147905179352830000", "295147905179352830000"),
+            ("9.999999999999997e+22", "9.999999999999997e+22"),
+            ("1e+23", "1e+23"),
+            ("1.0000000000000001e+23", "1.0000000000000001e+23"),
+            ("999999999999999700000", "999999999999999700000"),
+            ("999999999999999900000", "999999999999999900000"),
+            ("1e+21", "1e+21"),
+        ] {
             let value: Value = serde_json::from_str(input).unwrap();
-            let error = canonicalize(&value).unwrap_err();
-            assert!(error.contains("safe integer range"), "{input}: {error}");
+            let actual = String::from_utf8(canonicalize(&value).unwrap()).unwrap();
+            assert_eq!(actual, expected, "input: {input}");
         }
     }
 
